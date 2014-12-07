@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -62,7 +63,9 @@ func (t *ToRocket) Process(n *parser.Node) {
 func (t *ToRocket) processNode(n *parser.Node) {
 	switch n.Value {
 	case "add":
-		t.processAddNode(n)
+		t.processAddOrCopyNode(n)
+	case "copy":
+		t.processAddOrCopyNode(n)
 	case "cmd":
 		t.processCMDNode(n)
 	case "volume":
@@ -78,8 +81,8 @@ func (t *ToRocket) processNode(n *parser.Node) {
 	}
 }
 
-func (t *ToRocket) processAddNode(n *parser.Node) {
-	add := n.Original[4:]
+func (t *ToRocket) processAddOrCopyNode(n *parser.Node) {
+	add := n.Original[len(n.Value):]
 	files := strings.Split(add, " ")
 	dst := files[len(files)-1]
 	if dst[len(dst)-1] != '/' {
@@ -88,7 +91,7 @@ func (t *ToRocket) processAddNode(n *parser.Node) {
 
 	dst = "rootfs/" + dst
 	for _, file := range files[:len(files)-1] {
-		t.aci.AddFile(file, dst)
+		t.aci.AddFromFilesystem(file, dst)
 	}
 }
 
@@ -167,7 +170,7 @@ func (t *ToRocket) SaveToFile(filename string) error {
 		return err
 	}
 
-	if err := t.aci.AddFileFromBytes("app", json); err != nil {
+	if err := t.aci.AddFromBytes("app", json); err != nil {
 		return err
 	}
 
@@ -191,7 +194,7 @@ func NewACIFile() *ACIFile {
 	return &ACIFile{make([]*content, 0)}
 }
 
-func (a *ACIFile) AddFileFromBytes(filename string, raw []byte) error {
+func (a *ACIFile) AddFromBytes(filename string, raw []byte) error {
 	c := &content{}
 
 	time := time.Now()
@@ -210,16 +213,49 @@ func (a *ACIFile) AddFileFromBytes(filename string, raw []byte) error {
 	return nil
 }
 
-func (a *ACIFile) AddFile(src string, dst string) error {
-	c := &content{}
-
-	var err error
-	c.raw, err = ioutil.ReadFile(src)
+func (a *ACIFile) AddFromFilesystem(src string, dst string) error {
+	matches, err := filepath.Glob(src)
 	if err != nil {
 		return err
 	}
 
+	for _, file := range matches {
+		if err := a.addFile(file, dst); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (a *ACIFile) addFolder(src string, dst string) error {
+	return filepath.Walk(src, func(p string, info os.FileInfo, err error) error {
+		if p == src {
+			return nil
+		}
+
+		newDst := filepath.Join(dst, strings.Replace(p, path.Dir(src), "", -1))
+		if err := a.addFile(p, newDst); err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
+func (a *ACIFile) addFile(src string, dst string) error {
 	fInfo, err := os.Lstat(src)
+	if err != nil {
+		return err
+	}
+
+	if fInfo.IsDir() {
+		return a.addFolder(src, dst)
+	}
+
+	c := &content{}
+
+	c.raw, err = ioutil.ReadFile(src)
 	if err != nil {
 		return err
 	}
