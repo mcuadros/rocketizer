@@ -78,3 +78,11 @@ func (s *TransformerSuite) TestTransformer_processEnvNode(c *C) {
 	c.Assert(t.manifest.Environment["FOO"], Equals, "bar")
 	c.Assert(t.manifest.Environment["QUX"], Equals, "baz")
 }
+
+func (s *TransformerSuite) TestTransformer_SaveToFile(c *C) {
+	t, _ := NewToRocket("foo", "1.0.0", "linux", "amd64")
+	t.Process(s.GetNode("CMD [\"foo\", \"bar\"]"))
+
+	err := t.SaveToFile("/tmp/foo")
+	c.Assert(err, IsNil)
+}

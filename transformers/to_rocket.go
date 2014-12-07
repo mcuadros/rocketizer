@@ -1,10 +1,17 @@
 package main
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/coreos/rocket/app-container/schema"
 	"github.com/coreos/rocket/app-container/schema/types"
@@ -18,6 +25,7 @@ const (
 
 type ToRocket struct {
 	manifest schema.AppManifest
+	aci      *ACIFile
 }
 
 func NewToRocket(name, version, os, arch string) (*ToRocket, error) {
@@ -25,6 +33,8 @@ func NewToRocket(name, version, os, arch string) (*ToRocket, error) {
 	if err := t.setBasicData(name, version, os, arch); err != nil {
 		return nil, err
 	}
+
+	t.aci = NewACIFile()
 
 	return t, nil
 }
@@ -134,4 +144,98 @@ func (t *ToRocket) iterateNodes(nodes []*parser.Node) {
 func (t *ToRocket) Print() {
 	json, _ := t.manifest.MarshalJSON()
 	fmt.Printf("%s", json)
+}
+
+func (t *ToRocket) SaveToFile(filename string) error {
+	//json, err := t.manifest.MarshalJSON()
+	//if err != nil {
+	//	return err
+	//}
+
+	//if err := t.aci.AddFileFromBytes("app", json); err != nil {
+	//	return err
+	//}
+
+	t.aci.AddFile("/tmp/tar.go")
+
+	if err := t.aci.SaveToFile(filename); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type ACIFile struct {
+	w *tar.Writer
+	g *gzip.Writer
+	b *bytes.Buffer
+}
+
+func NewACIFile() *ACIFile {
+	b := bytes.NewBuffer(nil)
+	//g := gzip.NewWriter(b)
+	w := tar.NewWriter(b)
+
+	return &ACIFile{
+		w: w,
+		//	g: g,
+		b: b,
+	}
+}
+
+func (a *ACIFile) AddFileFromBytes(filename string, content []byte) error {
+	time := time.Now()
+
+	a.w.WriteHeader(&tar.Header{
+		Name:       filename,
+		Size:       int64(len(content)),
+		ModTime:    time,
+		AccessTime: time,
+		ChangeTime: time,
+	})
+
+	if _, err := a.w.Write(content); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *ACIFile) AddFile(file string) error {
+	content, err := ioutil.ReadFile(file)
+	if err != nil {
+		return err
+	}
+
+	fInfo, err := os.Lstat(file)
+	if err != nil {
+		return err
+	}
+
+	h, err := tar.FileInfoHeader(fInfo, "")
+	h.Name = path.Base(file)
+	if err != nil {
+		return err
+	}
+
+	if err := a.w.WriteHeader(h); err != nil {
+		return err
+	}
+
+	if _, err := a.w.Write(content); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *ACIFile) SaveToFile(filename string) error {
+	f, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	fmt.Println(a.b)
+
+	a.b.WriteTo(f)
+	return nil
 }
