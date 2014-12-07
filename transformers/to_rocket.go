@@ -2,7 +2,6 @@ package main
 
 import (
 	"archive/tar"
-	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
@@ -62,6 +61,8 @@ func (t *ToRocket) Process(n *parser.Node) {
 
 func (t *ToRocket) processNode(n *parser.Node) {
 	switch n.Value {
+	case "add":
+		t.processAddNode(n)
 	case "cmd":
 		t.processCMDNode(n)
 	case "volume":
@@ -74,6 +75,20 @@ func (t *ToRocket) processNode(n *parser.Node) {
 
 	if len(n.Children) != 0 {
 		t.iterateNodes(n.Children)
+	}
+}
+
+func (t *ToRocket) processAddNode(n *parser.Node) {
+	add := n.Original[4:]
+	files := strings.Split(add, " ")
+	dst := files[len(files)-1]
+	if dst[len(dst)-1] != '/' {
+		dst += "/"
+	}
+
+	dst = "rootfs/" + dst
+	for _, file := range files[:len(files)-1] {
+		t.aci.AddFile(file, dst)
 	}
 }
 
@@ -147,16 +162,14 @@ func (t *ToRocket) Print() {
 }
 
 func (t *ToRocket) SaveToFile(filename string) error {
-	//json, err := t.manifest.MarshalJSON()
-	//if err != nil {
-	//	return err
-	//}
+	json, err := t.manifest.MarshalJSON()
+	if err != nil {
+		return err
+	}
 
-	//if err := t.aci.AddFileFromBytes("app", json); err != nil {
-	//	return err
-	//}
-
-	t.aci.AddFile("/tmp/tar.go")
+	if err := t.aci.AddFileFromBytes("app", json); err != nil {
+		return err
+	}
 
 	if err := t.aci.SaveToFile(filename); err != nil {
 		return err
@@ -166,65 +179,58 @@ func (t *ToRocket) SaveToFile(filename string) error {
 }
 
 type ACIFile struct {
-	w *tar.Writer
-	g *gzip.Writer
-	b *bytes.Buffer
+	contents []*content
+}
+
+type content struct {
+	header *tar.Header
+	raw    []byte
 }
 
 func NewACIFile() *ACIFile {
-	b := bytes.NewBuffer(nil)
-	//g := gzip.NewWriter(b)
-	w := tar.NewWriter(b)
-
-	return &ACIFile{
-		w: w,
-		//	g: g,
-		b: b,
-	}
+	return &ACIFile{make([]*content, 0)}
 }
 
-func (a *ACIFile) AddFileFromBytes(filename string, content []byte) error {
+func (a *ACIFile) AddFileFromBytes(filename string, raw []byte) error {
+	c := &content{}
+
 	time := time.Now()
 
-	a.w.WriteHeader(&tar.Header{
+	c.header = &tar.Header{
 		Name:       filename,
-		Size:       int64(len(content)),
+		Size:       int64(len(raw)),
 		ModTime:    time,
 		AccessTime: time,
 		ChangeTime: time,
-	})
-
-	if _, err := a.w.Write(content); err != nil {
-		return err
 	}
+
+	c.raw = raw
+	a.contents = append(a.contents, c)
 
 	return nil
 }
 
-func (a *ACIFile) AddFile(file string) error {
-	content, err := ioutil.ReadFile(file)
+func (a *ACIFile) AddFile(src string, dst string) error {
+	c := &content{}
+
+	var err error
+	c.raw, err = ioutil.ReadFile(src)
 	if err != nil {
 		return err
 	}
 
-	fInfo, err := os.Lstat(file)
+	fInfo, err := os.Lstat(src)
 	if err != nil {
 		return err
 	}
 
-	h, err := tar.FileInfoHeader(fInfo, "")
-	h.Name = path.Base(file)
+	c.header, err = tar.FileInfoHeader(fInfo, "")
+	c.header.Name = dst + path.Base(src)
 	if err != nil {
 		return err
 	}
 
-	if err := a.w.WriteHeader(h); err != nil {
-		return err
-	}
-
-	if _, err := a.w.Write(content); err != nil {
-		return err
-	}
+	a.contents = append(a.contents, c)
 
 	return nil
 }
@@ -234,8 +240,25 @@ func (a *ACIFile) SaveToFile(filename string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(a.b)
 
-	a.b.WriteTo(f)
+	g := gzip.NewWriter(f)
+	t := tar.NewWriter(g)
+
+	defer func() {
+		t.Close()
+		g.Close()
+		f.Close()
+	}()
+
+	for _, c := range a.contents {
+		if err := t.WriteHeader(c.header); err != nil {
+			return err
+		}
+
+		if _, err := t.Write(c.raw); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
