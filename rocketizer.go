@@ -18,7 +18,10 @@ func main() {
 
 	_, err := parser.Parse()
 	if err != nil {
-		parser.WriteHelp(os.Stdout)
+		if _, ok := err.(*flags.Error); ok {
+			parser.WriteHelp(os.Stdout)
+		}
+
 		os.Exit(1)
 	}
 }

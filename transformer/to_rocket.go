@@ -26,6 +26,7 @@ const (
 type ToRocket struct {
 	manifest schema.AppManifest
 	aci      *ACIFile
+	output   string
 }
 
 func NewToRocket(name, version, os, arch string) (*ToRocket, error) {
@@ -34,6 +35,7 @@ func NewToRocket(name, version, os, arch string) (*ToRocket, error) {
 		return nil, err
 	}
 
+	t.output = fmt.Sprintf("%s-v%s-%s-%s.aci", name, version, os, arch)
 	t.aci = NewACIFile()
 
 	return t, nil
@@ -174,21 +176,25 @@ func (t *ToRocket) Print() {
 	fmt.Printf("%s", json)
 }
 
-func (t *ToRocket) SaveToFile(filename string) error {
+func (t *ToRocket) SaveToFile(filename string) (string, error) {
+	if filename == "" {
+		filename = t.output
+	}
+
 	json, err := t.manifest.MarshalJSON()
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if err := t.aci.AddFromBytes("app", json); err != nil {
-		return err
+		return "", err
 	}
 
 	if err := t.aci.SaveToFile(filename); err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return t.output, nil
 }
 
 type ACIFile struct {
@@ -215,6 +221,7 @@ func (a *ACIFile) AddFromBytes(filename string, raw []byte) error {
 		ModTime:    time,
 		AccessTime: time,
 		ChangeTime: time,
+		Mode:       int64(0600),
 	}
 
 	c.raw = raw
