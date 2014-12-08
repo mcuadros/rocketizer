@@ -66,8 +66,10 @@ func (t *ToRocket) processNode(n *parser.Node) {
 		t.processAddOrCopyNode(n)
 	case "copy":
 		t.processAddOrCopyNode(n)
+	case "entrypoint":
+		t.processEntryPointOrCMDNode(n)
 	case "cmd":
-		t.processCMDNode(n)
+		t.processEntryPointOrCMDNode(n)
 	case "volume":
 		t.processVolumeNode(n)
 	case "env":
@@ -95,15 +97,23 @@ func (t *ToRocket) processAddOrCopyNode(n *parser.Node) {
 	}
 }
 
-func (t *ToRocket) processCMDNode(n *parser.Node) {
-	cmd := n.Original[4:]
+func (t *ToRocket) processEntryPointOrCMDNode(n *parser.Node) {
+	cmd := n.Original[len(n.Value):]
 	if isJSON, ok := n.Attributes["json"]; ok && isJSON {
 		var data []string
 		json.Unmarshal([]byte(n.Original[4:]), &data)
 		cmd = strings.Join(data, " ")
 	}
 
-	t.manifest.Exec = []string{cmd}
+	if len(t.manifest.Exec) == 1 {
+		if n.Value == "cmd" {
+			cmd = t.manifest.Exec[0] + " " + cmd
+		} else {
+			cmd += " " + t.manifest.Exec[0]
+		}
+	}
+
+	t.manifest.Exec = []string{strings.Trim(cmd, " ")}
 }
 
 func (t *ToRocket) processVolumeNode(n *parser.Node) {

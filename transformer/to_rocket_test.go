@@ -48,6 +48,15 @@ func (s *TransformerSuite) TestTransformer_processCMDNodePlain(c *C) {
 	c.Assert(t.manifest.Exec, HasLen, 1)
 	c.Assert(t.manifest.Exec[0], Equals, "foo bar")
 }
+
+func (s *TransformerSuite) TestTransformer_processCMDAndEntrypointNodePlain(c *C) {
+	t, _ := NewToRocket("foo", "1.0.0", "linux", "amd64")
+	t.Process(s.GetNode("CMD -a\nENTRYPOINT ls"))
+
+	c.Assert(t.manifest.Exec, HasLen, 1)
+	c.Assert(t.manifest.Exec[0], Equals, "ls -a")
+}
+
 func (s *TransformerSuite) TestTransformer_processVolumeNode(c *C) {
 	t, _ := NewToRocket("foo", "1.0.0", "linux", "amd64")
 	t.Process(s.GetNode("VOLUME [\"/foo/bar\", \"qux\"]"))
