@@ -36,6 +36,8 @@ func (c *Convert) Execute(args []string) error {
 		return err
 	}
 
+	t.BasePath = filepath.Dir(filename)
+
 	fmt.Printf("Parsing Dockerfile %q\n", color.Cyan(filename))
 	n, err := c.getNodesFromDockerfile(filename)
 	if err != nil {
@@ -43,7 +45,9 @@ func (c *Convert) Execute(args []string) error {
 	}
 
 	fmt.Printf("Compressing files... ")
-	t.Process(n)
+	if err = t.Process(n); err != nil {
+		return err
+	}
 
 	var file string
 	if file, err = t.SaveToFile(c.Output); err != nil {
@@ -55,6 +59,7 @@ func (c *Convert) Execute(args []string) error {
 
 	return nil
 }
+
 func (c *Convert) getFilename() (string, error) {
 	fInfo, err := os.Lstat(c.Dockerfile)
 	if err != nil {

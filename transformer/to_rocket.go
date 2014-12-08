@@ -24,6 +24,7 @@ const (
 )
 
 type ToRocket struct {
+	BasePath string
 	manifest schema.AppManifest
 	aci      *ACIFile
 	output   string
@@ -58,49 +59,63 @@ func (t *ToRocket) setBasicData(name, version, os, arch string) error {
 	return nil
 }
 
-func (t *ToRocket) Process(n *parser.Node) {
-	t.processNode(n)
+func (t *ToRocket) Process(n *parser.Node) error {
+	return t.processNode(n)
 }
 
-func (t *ToRocket) processNode(n *parser.Node) {
+func (t *ToRocket) processNode(n *parser.Node) error {
+	var err error
 	switch n.Value {
 	case "add":
-		t.processAddOrCopyNode(n)
+		err = t.processAddOrCopyNode(n)
 	case "copy":
-		t.processAddOrCopyNode(n)
+		err = t.processAddOrCopyNode(n)
 	case "entrypoint":
-		t.processEntryPointOrCMDNode(n)
+		err = t.processEntryPointOrCMDNode(n)
 	case "cmd":
-		t.processEntryPointOrCMDNode(n)
+		err = t.processEntryPointOrCMDNode(n)
 	case "volume":
-		t.processVolumeNode(n)
+		err = t.processVolumeNode(n)
 	case "env":
-		t.processEnvNode(n)
+		err = t.processEnvNode(n)
 	case "expose":
-		t.processExposeNode(n)
+		err = t.processExposeNode(n)
+	}
+
+	if err != nil {
+		return err
 	}
 
 	if len(n.Children) != 0 {
-		t.iterateNodes(n.Children)
+		if err = t.iterateNodes(n.Children); err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
-func (t *ToRocket) processAddOrCopyNode(n *parser.Node) {
-	add := n.Original[len(n.Value):]
+func (t *ToRocket) processAddOrCopyNode(n *parser.Node) error {
+	add := n.Original[len(n.Value)+1:]
 	files := strings.Split(add, " ")
 	dst := files[len(files)-1]
 	if dst[len(dst)-1] != '/' {
 		dst += "/"
 	}
 
-	dst = "rootfs/" + dst
+	dst = filepath.Join("rootfs", dst)
 	for _, file := range files[:len(files)-1] {
-		t.aci.AddFromFilesystem(file, dst)
+		file = filepath.Join(t.BasePath, file)
+		if err := t.aci.AddFromFilesystem(file, dst); err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
-func (t *ToRocket) processEntryPointOrCMDNode(n *parser.Node) {
-	cmd := n.Original[len(n.Value):]
+func (t *ToRocket) processEntryPointOrCMDNode(n *parser.Node) error {
+	cmd := n.Original[len(n.Value)+1:]
 	if isJSON, ok := n.Attributes["json"]; ok && isJSON {
 		var data []string
 		json.Unmarshal([]byte(n.Original[4:]), &data)
@@ -116,9 +131,11 @@ func (t *ToRocket) processEntryPointOrCMDNode(n *parser.Node) {
 	}
 
 	t.manifest.Exec = []string{strings.Trim(cmd, " ")}
+
+	return nil
 }
 
-func (t *ToRocket) processVolumeNode(n *parser.Node) {
+func (t *ToRocket) processVolumeNode(n *parser.Node) error {
 	var volumes []string
 
 	if isJSON, ok := n.Attributes["json"]; ok && isJSON {
@@ -135,9 +152,12 @@ func (t *ToRocket) processVolumeNode(n *parser.Node) {
 			Path: path,
 		}
 	}
+
+	return nil
+
 }
 
-func (t *ToRocket) processEnvNode(n *parser.Node) {
+func (t *ToRocket) processEnvNode(n *parser.Node) error {
 	env := n.Original[4:]
 	values := strings.Split(env, " ")
 
@@ -146,9 +166,10 @@ func (t *ToRocket) processEnvNode(n *parser.Node) {
 	}
 
 	t.manifest.Environment[values[0]] = values[1]
+	return nil
 }
 
-func (t *ToRocket) processExposeNode(n *parser.Node) {
+func (t *ToRocket) processExposeNode(n *parser.Node) error {
 	expose := n.Original[7:]
 	port := strings.Split(expose, "/")
 	portInt, _ := strconv.Atoi(port[0])
@@ -163,12 +184,18 @@ func (t *ToRocket) processExposeNode(n *parser.Node) {
 		Protocol: proto,
 		Port:     uint(portInt),
 	})
+
+	return nil
 }
 
-func (t *ToRocket) iterateNodes(nodes []*parser.Node) {
+func (t *ToRocket) iterateNodes(nodes []*parser.Node) error {
 	for _, n := range nodes {
-		t.Process(n)
+		if err := t.Process(n); err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 func (t *ToRocket) Print() {
@@ -278,7 +305,7 @@ func (a *ACIFile) addFile(src string, dst string) error {
 	}
 
 	c.header, err = tar.FileInfoHeader(fInfo, "")
-	c.header.Name = dst + path.Base(src)
+	c.header.Name = filepath.Join(dst, path.Base(src))
 	if err != nil {
 		return err
 	}
