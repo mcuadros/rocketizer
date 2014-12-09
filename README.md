@@ -52,7 +52,7 @@ New ACI created outyet-v1.0.0-linux-amd64.aci
 
 Create a `outyet-v1.0.0-linux-amd64.aci` container with the following contents:
 ```
-rootfs/go/bin/outyet/outyet
+rootfs/go/bin/outyet
 app
 ```
 

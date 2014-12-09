@@ -234,7 +234,27 @@ type content struct {
 }
 
 func NewACIFile() *ACIFile {
-	return &ACIFile{make([]*content, 0)}
+	aci := &ACIFile{make([]*content, 0)}
+	aci.BuildDir("rootfs")
+
+	return aci
+}
+
+func (a *ACIFile) BuildDir(path string) {
+	c := &content{}
+
+	time := time.Now()
+	c.header = &tar.Header{
+		Name:       path,
+		Size:       int64(0),
+		ModTime:    time,
+		AccessTime: time,
+		ChangeTime: time,
+		Typeflag:   tar.TypeDir,
+		Mode:       int64(0660),
+	}
+
+	a.contents = append(a.contents, c)
 }
 
 func (a *ACIFile) AddFromBytes(filename string, raw []byte) error {
@@ -248,7 +268,7 @@ func (a *ACIFile) AddFromBytes(filename string, raw []byte) error {
 		ModTime:    time,
 		AccessTime: time,
 		ChangeTime: time,
-		Mode:       int64(0600),
+		Mode:       int64(0660),
 	}
 
 	c.raw = raw
@@ -305,7 +325,12 @@ func (a *ACIFile) addFile(src string, dst string) error {
 	}
 
 	c.header, err = tar.FileInfoHeader(fInfo, "")
-	c.header.Name = filepath.Join(dst, path.Base(src))
+
+	c.header.Name = dst
+	if dst[len(dst)-1] == '/' {
+		c.header.Name = filepath.Join(dst, path.Base(src))
+	}
+
 	if err != nil {
 		return err
 	}
