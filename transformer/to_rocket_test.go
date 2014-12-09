@@ -92,7 +92,7 @@ func (s *TransformerSuite) TestTransformer_processAddNode(c *C) {
 	t, _ := NewToRocket("foo", "1.0.0", "linux", "amd64")
 	t.Process(s.GetNode("CMD foo\nADD . example"))
 
-	err := t.SaveToFile("/tmp/rocket_add")
+	_, err := t.SaveToFile("/tmp/rocket_add")
 	c.Assert(err, IsNil)
 }
 
@@ -100,6 +100,6 @@ func (s *TransformerSuite) TestTransformer_processCopyNode(c *C) {
 	t, _ := NewToRocket("foo", "1.0.0", "linux", "amd64")
 	t.Process(s.GetNode("CMD foo\nCOPY . example"))
 
-	err := t.SaveToFile("/tmp/rocket_copy")
+	_, err := t.SaveToFile("/tmp/rocket_copy")
 	c.Assert(err, IsNil)
 }

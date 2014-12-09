@@ -7,13 +7,23 @@ import (
 	"github.com/mcuadros/rocketizer/command"
 )
 
+var version string
+var build string
+
 func main() {
-	parser := flags.NewNamedParser("test", flags.Default)
+	parser := flags.NewNamedParser("rocketizer", flags.Default)
+	parser.AddCommand(
+		"version",
+		"Version and build information",
+		"",
+		&command.Version{Version: version, Build: build},
+	)
+
 	parser.AddCommand(
 		"convert",
 		"Convert a Dockerfile into a ACI container",
 		"",
-		new(command.Convert),
+		&command.Convert{},
 	)
 
 	_, err := parser.Parse()
