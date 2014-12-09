@@ -14,9 +14,9 @@ Installation
 ------------
 
 ```
-wget https://github.com/mcuadros/rocketizer/releases/download/v0.1.0/rocketizer_v0.1.0_linux_amd64.tar.gz
-tar -xvzf rocketizer_v0.1.0_linux_amd64.tar.gz
-cp rocketizer_v0.1.0_linux_amd64/rocketizer /usr/local/bin/
+wget https://github.com/mcuadros/rocketizer/releases/download/v0.1.1/rocketizer_v0.1.1_linux_amd64.tar.gz
+tar -xvzf rocketizer_v0.1.1_linux_amd64.tar.gz
+cp rocketizer_v0.1.1_linux_amd64/rocketizer /usr/local/bin/
 ```
 
 browse the [`releases`](https://github.com/mcuadros/rocketizer/releases) section to see other archs

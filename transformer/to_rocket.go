@@ -241,7 +241,12 @@ func NewACIFile() *ACIFile {
 }
 
 func (a *ACIFile) BuildDir(path string) {
+	fmt.Println(path)
 	c := &content{}
+
+	if path[len(path)-1] != '/' {
+		path += "/"
+	}
 
 	time := time.Now()
 	c.header = &tar.Header{
@@ -330,6 +335,8 @@ func (a *ACIFile) addFile(src string, dst string) error {
 	if dst[len(dst)-1] == '/' {
 		c.header.Name = filepath.Join(dst, path.Base(src))
 	}
+
+	a.BuildDir(path.Dir(dst))
 
 	if err != nil {
 		return err
